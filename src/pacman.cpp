@@ -8,30 +8,24 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
-#include <vector>
-#include <ctime>
-#include "camera.h" // from LearnOpenGL
+#include <random>
+#include "camera.h"
 #include "shader.h"
 
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
-const int MAP_WIDTH = 20;
-const int MAP_HEIGHT = 20;
-const float CELL_SIZE = 2.0f;
+constexpr unsigned int SCR_WIDTH = 800;
+constexpr unsigned int SCR_HEIGHT = 600;
+constexpr int MAP_WIDTH = 50;
+constexpr int MAP_HEIGHT = 50;
+constexpr float CELL_SIZE = 2.0f;
+bool mouseLocked = true;
 
 unsigned int cubeVAO = 0, cubeVBO = 0;
 void initCube() {
-    float vertices[] = {
+    // Fixed cube vertices with consistent counter-clockwise winding order
+    // when viewed from outside the cube
+    constexpr float vertices[] = {
         // positions          // normals
-        // Back face
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-
-        // Front face
+        // Front face (facing +Z) - CCW when viewed from outside
         -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
          0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
          0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
@@ -39,23 +33,31 @@ void initCube() {
         -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
         -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
 
-        // Left face
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+        // Back face (facing -Z) - CCW when viewed from outside
+         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+
+        // Left face (facing -X) - CCW when viewed from outside
         -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
         -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
         -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
 
-        // Right face
-         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+        // Right face (facing +X) - CCW when viewed from outside
          0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
          0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
 
-        // Bottom face
+        // Bottom face (facing -Y) - CCW when viewed from outside
         -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
          0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
          0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
@@ -63,13 +65,13 @@ void initCube() {
         -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
         -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
 
-        // Top face
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+        // Top face (facing +Y) - CCW when viewed from outside
         -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f
     };
 
     glGenVertexArrays(1, &cubeVAO);
@@ -79,10 +81,10 @@ void initCube() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), static_cast<void*>(nullptr));
     glEnableVertexAttribArray(0);
     // Normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
@@ -106,34 +108,46 @@ enum CellType { EMPTY, WALL, PELLET };
 CellType map[MAP_WIDTH][MAP_HEIGHT];
 
 // Callbacks
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void framebuffer_size_callback(GLFWwindow* window, const int width, const int height) {
     glViewport(0, 0, width, height);
 }
 
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void key_callback(GLFWwindow* window, const int key, int scancode, const int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+        mouseLocked = !mouseLocked;
+        if (mouseLocked) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true; // reset firstMouse to avoid jump
+        } else {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+    }
+
     if (key >= 0 && key < 1024)
         keys[key] = (action != GLFW_RELEASE);
 }
 
-void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+
+void mouse_callback(GLFWwindow* window, const double xpos, const double ypos) {
     if (firstMouse) {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
     }
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos;
+    const float xoffset = xpos - lastX;
+    const float yoffset = lastY - ypos;
     lastX = xpos;
     lastY = ypos;
     camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
-// Movement + Collision with improved collision detection
-bool canMoveTo(glm::vec3 pos) {
-    // Add collision radius/buffer around player
-    float collisionRadius = 0.01f;
+// Movement and Collision with improved collision detection
+bool canMoveTo(const glm::vec3 pos) {
+    // Add collision radius/buffer around the player
+    constexpr float collisionRadius = 0.05f;
 
     // Check multiple points around the player
     glm::vec3 checkPoints[] = {
@@ -149,8 +163,8 @@ bool canMoveTo(glm::vec3 pos) {
     };
 
     for (const auto& point : checkPoints) {
-        int mx = int(round(point.x));
-        int mz = int(round(point.z));
+        const int mx = static_cast<int>(round(point.x));
+        const int mz = static_cast<int>(round(point.z));
         if (mx < 0 || mx >= MAP_WIDTH || mz < 0 || mz >= MAP_HEIGHT) return false;
         if (map[mx][mz] == WALL) return false;
     }
@@ -166,25 +180,23 @@ void Do_Movement() {
     if (keys[GLFW_KEY_D]) dir += camera.Right;
 
     if (glm::length(dir) > 0) {
-        dir.y = 0; // Lock movement to horizontal plane
+        dir.y = 0; // Lock movement to a horizontal plane
         dir = glm::normalize(dir);
-        glm::vec3 newPos = camera.Position + dir * deltaTime * 3.5f; // Slightly faster movement
+        const glm::vec3 newPos = camera.Position + dir * deltaTime * 3.5f; // Slightly faster movement
 
         if (canMoveTo(newPos)) {
             camera.Position = newPos;
-            camera.Position.y = 0.0f; // Keep camera at floor level
+            camera.Position.y = 0.0f; // Keep the camera at floor level
         }
     }
 }
 
 // Improved maze generator with better connectivity
 void generateMap() {
-    srand(time(NULL));
-
     // Initialize all as walls
-    for (int x = 0; x < MAP_WIDTH; ++x) {
-        for (int z = 0; z < MAP_HEIGHT; ++z) {
-            map[x][z] = WALL;
+    for (auto & x : map) {
+        for (auto & z : x) {
+            z = WALL;
         }
     }
 
@@ -192,8 +204,8 @@ void generateMap() {
     pelletsRemaining = 0;
     for (int x = 1; x < MAP_WIDTH - 1; ++x) {
         for (int z = 1; z < MAP_HEIGHT - 1; ++z) {
-            if (rand() % 4 != 0) { // 75% chance of being passable
-                if (rand() % 3 == 0) { // 33% of passable cells have pellets
+            if (random() % 4 != 0) { // 75% chance of being passable
+                if (random() % 3 == 0) { // 33% of passable cells have pellets
                     map[x][z] = PELLET;
                     pelletsRemaining++;
                 } else {
@@ -213,54 +225,70 @@ void generateMap() {
 }
 
 // Optimized rendering function
-void renderCubeAt(const float x, const float y, const float z, const glm::vec3 color, const Shader& shader) {
+void renderCubeAt(const float x, const float y, const float z,
+                 const glm::vec3 color, const Shader& shader, const float materialType) {
     const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
 
     shader.setMat4("model", model);
     shader.setVec3("color", color);
+    shader.setFloat("materialType", materialType);
 
     glBindVertexArray(cubeVAO);
     glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-// Batch rendering for better performance
-void renderMaze(const Shader& shader) {
-    glBindVertexArray(cubeVAO);
 
-    // Render floor tiles first (with a slight offset)
+// Batch rendering for better performance
+void renderMaze(const Shader& shader, const Camera& cam) {
+    glBindVertexArray(cubeVAO);
+    shader.setVec3("viewPos", cam.Position);
+
+    // PASS 1: Render opaque objects first (floor, walls)
+
+    // Render floor tiles
     for (int x = 0; x < MAP_WIDTH; ++x) {
         for (int z = 0; z < MAP_HEIGHT; ++z) {
-            // Floor tile for all cells
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, -0.51f, z)); // Slightly lower
-            model = glm::scale(model, glm::vec3(1.0f, 0.1f, 1.0f)); // Thin floor
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, -0.51f, z));
+            model = glm::scale(model, glm::vec3(1.0f, 0.1f, 1.0f));
             shader.setMat4("model", model);
-            shader.setVec3("color", glm::vec3(0.1f, 0.1f, 0.3f)); // Dark blue floor
+            shader.setVec3("color", glm::vec3(0.1f, 0.1f, 0.3f));
+            shader.setFloat("materialType", 2.0f); // Floor material
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
     }
 
-    // Render walls and pellets
+    // Render walls
     for (int x = 0; x < MAP_WIDTH; ++x) {
         for (int z = 0; z < MAP_HEIGHT; ++z) {
             if (map[x][z] == WALL) {
-                // Full-height wall from floor to ceiling
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, 0.0f, z));
-                model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f)); // Slightly smaller to avoid Z-fighting
                 shader.setMat4("model", model);
-                shader.setVec3("color", glm::vec3(0.3f, 0.5f, 0.9f)); // Brighter blue walls
-                glDrawArrays(GL_TRIANGLES, 0, 36);
-            }
-            else if (map[x][z] == PELLET) {
-                // Pellet floating slightly above floor
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, -.2f, z));
-                model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f)); // Small pellets
-                shader.setMat4("model", model);
-                shader.setVec3("color", glm::vec3(1.0f, 0.9f, 0.2f)); // Bright yellow pellets
+                shader.setVec3("color", glm::vec3(0.3f, 0.5f, 0.9f));
+                shader.setFloat("materialType", 0.0f); // Wall material
                 glDrawArrays(GL_TRIANGLES, 0, 36);
             }
         }
     }
 
+    // PASS 2: Render transparent objects (pellets) last
+    // Disable depth writing for transparent objects to prevent sorting issues
+    glDepthMask(GL_FALSE);
+
+    for (int x = 0; x < MAP_WIDTH; ++x) {
+        for (int z = 0; z < MAP_HEIGHT; ++z) {
+            if (map[x][z] == PELLET) {
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, -0.2f, z));
+                model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
+                shader.setMat4("model", model);
+                shader.setVec3("color", glm::vec3(1.0f, 0.9f, 0.2f));
+                shader.setFloat("materialType", 1.0f); // Pellet material (translucent)
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+            }
+        }
+    }
+
+    // Re-enable depth writing
+    glDepthMask(GL_TRUE);
     glBindVertexArray(0);
 }
 
@@ -280,7 +308,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "3D Pacman - Collect all pellets!", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "3D Pacman - Collect all pellets!", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -294,7 +322,7 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // Initialize GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
         std::cerr << "Failed to initialize GLAD\n";
         glfwTerminate();
         return -1;
@@ -308,10 +336,21 @@ int main() {
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1.0f, 1.0f);
 
-    // Disable face culling for now to fix the backward viewing issue
-    // glEnable(GL_CULL_FACE);
-    // glCullFace(GL_BACK);
-    // glFrontFace(GL_CCW);
+    // Enable alpha blending for transparent pellets
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
+    // Enable face culling for better performance
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);           // Cull back-facing triangles
+    glFrontFace(GL_CCW);           // Counter-clockwise is front-facing
+
+    // Optional: Enable polygon offset to reduce Z-fighting on overlapping surfaces
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f);
 
     // Initialize resources
     initCube();
@@ -320,7 +359,7 @@ int main() {
     // Initialize shaders AFTER OpenGL context is created
     Shader cubeShader("shader/cube.vert", "shader/cube.frag");
 
-    // Check if shader compiled successfully (basic check)
+    // Check if the shader compiled successfully (basic check)
     if (!cubeShader.ID) {
         std::cerr << "Failed to create shader program\n";
         cleanupCube();
@@ -333,7 +372,7 @@ int main() {
     // Main game loop
     while (!glfwWindowShouldClose(window)) {
         // Calculate deltaTime
-        float currentFrame = glfwGetTime();
+        const float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
@@ -342,8 +381,8 @@ int main() {
         Do_Movement();
 
         // Check pellet collection
-        int camX = int(round(camera.Position.x));
-        int camZ = int(round(camera.Position.z));
+        const int camX = static_cast<int>(round(camera.Position.x));
+        const int camZ = static_cast<int>(round(camera.Position.z));
         if (camX >= 0 && camX < MAP_WIDTH && camZ >= 0 && camZ < MAP_HEIGHT) {
             if (map[camX][camZ] == PELLET) {
                 map[camX][camZ] = EMPTY;
@@ -365,7 +404,7 @@ int main() {
         // Set up matrices with better near/far planes
         glm::mat4 projection = glm::perspective(
             glm::radians(camera.Zoom),
-            (float)SCR_WIDTH / (float)SCR_HEIGHT,
+            static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT),
             0.01f,  // Closer near plane
             100.0f
         );
@@ -375,9 +414,10 @@ int main() {
         cubeShader.use();
         cubeShader.setMat4("view", view);
         cubeShader.setMat4("projection", projection);
+        cubeShader.setVec3("viewPos", camera.Position);
 
         // Render the maze
-        renderMaze(cubeShader);
+        renderMaze(cubeShader,camera);
 
         glfwSwapBuffers(window);
     }

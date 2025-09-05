@@ -10,7 +10,10 @@ out vec3 FragPos;
 out vec3 Normal;
 
 void main() {
+    // World space fragment position
     FragPos = vec3(model * vec4(aPos, 1.0));
+
+    // Properly transform normals (handles non-uniform scaling)
     Normal = mat3(transpose(inverse(model))) * aNormal;
 
     gl_Position = projection * view * model * vec4(aPos, 1.0);
